@@ -9,51 +9,70 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CCACHE_COMPILERCHECK: "%compiler% -dumpmachine; %compiler% -dumpversion"
+      CCACHE_NOHASHDIR: "true"
+      CCACHE_HARDLINK: "true"
+      CCACHE_BASEDIR: "${{ github.workspace }}"
+      
     if: ${{ !startsWith(github.event.head_commit.message, '[skip ci]') }}
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-      with:
-        submodules: "recursive"
-        fetch-depth: 0
-        
-    - name: Checkout libxposed/api
-      uses: actions/checkout@v3
-      with:
-        repository: libxposed/api
-        path: libxposed/api
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+          fetch-depth: 0
 
-    - name: Checkout libxposed/service
-      uses: actions/checkout@v3
-      with:
-        repository: libxposed/service
-        path: libxposed/service
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: "temurin"
+          java-version: "17"
 
-    - name: Set up JDK
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-    
-    - name: Build dependencies
-      working-directory: libxposed
-      run: |
-        cd api
-        echo 'org.gradle.jvmargs=-Xmx2048m' >> gradle.properties
-        ./gradlew :api:publishApiPublicationToMavenLocal
-        cd ..
-        cd service
-        echo 'org.gradle.jvmargs=-Xmx2048m' >> gradle.properties
-        ./gradlew :interface:publishInterfacePublicationToMavenLocal
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+        with:
+          gradle-home-cache-cleanup: true
 
-    - name: Build with Gradle
-      run: |
-        chmod +x gradlew
-        ./gradlew assembleRelease
+      - name: Checkout libxposed/api
+        uses: actions/checkout@v3
+        with:
+          repository: libxposed/api
+          path: libxposed/api
 
-    - name: Upload APK
-      uses: actions/upload-artifact@v3
-      with:
-        name: ImageDumper.apk
-        path: app/build/outputs/apk/release/*.apk
+      - name: Checkout libxposed/api
+        uses: actions/checkout@v3
+        with:
+          repository: libxposed/service
+          path: libxposed/service
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          max-size: 2G
+          key: ${{ runner.os }}
+          restore-keys: ${{ runner.os }}
+          save: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+
+      - name: Build dependencies
+        working-directory: libxposed
+        run: |
+          cd api
+          echo 'org.gradle.jvmargs=-Xmx2048m' >> gradle.properties
+          ./gradlew :api:publishApiPublicationToMavenLocal
+          cd ..
+          cd service
+          echo 'org.gradle.jvmargs=-Xmx2048m' >> gradle.properties
+          ./gradlew :interface:publishInterfacePublicationToMavenLocal
+
+      - name: Build with Gradle
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v3
+        with:
+          name: ImageDumper.apk
+          path: app/build/outputs/apk/release/*.apk
 
