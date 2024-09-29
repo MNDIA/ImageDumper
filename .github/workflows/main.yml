@@ -41,7 +41,7 @@ jobs:
           ref: 100
           path: libxposed/api
 
-      - name: Checkout libxposed/api
+      - name: Checkout libxposed/service
         uses: actions/checkout@v3
         with:
           repository: libxposed/service
@@ -66,6 +66,7 @@ jobs:
           cd service
           echo 'org.gradle.jvmargs=-Xmx2048m' >> gradle.properties
           ./gradlew :interface:publishInterfacePublicationToMavenLocal
+          cd ..
 
       - name: Build with Gradle
         run: |
